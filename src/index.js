@@ -47,12 +47,12 @@ app.post("/messages", async (req, res) => {
     const user = req.headers.user;
     const { to, text, type } = req.body;
 
-    // if (!to || !text) {
-    //     return res.sendStatus(422);
-    // }
-    // if (type !== "message" && type !== "private_message") {
-    //     return res.sendStatus(422);
-    // }
+    if (!to || !text) {
+        return res.sendStatus(422);
+    }
+    if (type !== "message" && type !== "private_message") {
+        return res.sendStatus(422);
+    }
     await db.collection("messages").insertOne({
         from: user,
         to,
@@ -61,7 +61,17 @@ app.post("/messages", async (req, res) => {
         time: time
     });
     res.sendStatus(201);
-})
+});
 
+app.get("/messages", async (req, res) => {
+    const messages = await db.collection("messages").find().toArray();
+    let { limit } = req.query;
+
+    
+    if (!limit) {
+        res.send(messages);
+    }
+    res.send(messages.slice(-limit));
+})
 
 app.listen(5000, () => console.log("Listen on http://localhost:5000"));
