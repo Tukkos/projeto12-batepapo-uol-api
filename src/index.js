@@ -27,6 +27,14 @@ const messagesSchema = joi.object({
     type: joi.string().required().valid("message", "private_message")
 });
 
+function filterEverybody(message) {
+    return message.type === "message";
+};
+
+function filterPrivate(message, user) {
+    return message.type === "private_message" && message.from === user || message.to === user;
+};
+
 app.post("/participants", async (req, res) => {
     const { name } = req.body;
 
@@ -79,9 +87,16 @@ app.post("/messages", async (req, res) => {
         return res.status(422).send(error);
     };
 
-    const participants = await db.collection("messages").find().toArray();
-    console.log(participants.map(participant => participant.from));
-    if (!participants.map(participant => participant.from).includes(user)) {
+    // const participants = await db.collection("participants").find().toArray();
+    // console.log(participants.map(participant => participant.name));
+    // console.log(user);
+    // if (!participants.map(participant => participant.name).includes(user)) {
+    //     return res.status(422).send("Erro de usuário");
+    // };
+
+    const participants = await db.collection("participants").find().toArray();
+    console.log(user);
+    if (!participants.find(participant => participant.name === user)) {
         return res.status(422).send("Erro de usuário");
     };
 
@@ -103,12 +118,19 @@ app.post("/messages", async (req, res) => {
 app.get("/messages", async (req, res) => {
     const messages = await db.collection("messages").find().toArray();
     let { limit } = req.query;
+    const user = req.headers.user;
 
+    const messagesFiltered = messages.filter(message => {
+        return (
+            filterEverybody(message) ||
+            filterPrivate(message, user)
+        );
+    });
     
     if (!limit) {
-        res.send(messages);
+        return res.send(messagesFiltered);
     }
-    res.send(messages.slice(-limit));
+    return res.send(messagesFiltered.slice(-limit));
 })
 
 app.listen(5000, () => console.log("Listen on http://localhost:5000"));
