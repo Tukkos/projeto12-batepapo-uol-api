@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import joi from "joi";
 
 let now = dayjs();
+const time = now.format("HH:mm:ss");
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -29,6 +30,10 @@ const messagesSchema = joi.object({
 
 function filterEverybody(message) {
     return message.type === "message";
+};
+
+function filterStatus(message) {
+    return message.type === "status";
 };
 
 function filterPrivate(message, user) {
@@ -61,6 +66,13 @@ app.post("/participants", async (req, res) => {
             name,
             lastStatus: Date.now()
         });
+        await db.collection("messages").insertOne({
+            name,
+            to: "Todos",
+            text: "entra na sala...",
+            type: "status",
+            time: time
+        });
         res.sendStatus(201);
     } catch (error) {
         res.send(500).send(error.message);
@@ -76,8 +88,19 @@ app.get("/participants", async (req, res) => {
     };
 });
 
+app.delete("/participants", async (req, res) => {
+
+    const participants = await db.collection("participants").find().toArray();
+    console.log(participants.filter(participant => (Date.now - Number(participant.lastStatus)) >= 10));
+
+    // try {
+    //     // await db.collection("participants").deleteOne({ _id})
+    // } catch (error) {
+        
+    // }
+})
+
 app.post("/messages", async (req, res) => {
-    const time = now.format("HH:mm:ss");
     const user = req.headers.user;
     const { to, text, type } = req.body;
 
@@ -87,15 +110,7 @@ app.post("/messages", async (req, res) => {
         return res.status(422).send(error);
     };
 
-    // const participants = await db.collection("participants").find().toArray();
-    // console.log(participants.map(participant => participant.name));
-    // console.log(user);
-    // if (!participants.map(participant => participant.name).includes(user)) {
-    //     return res.status(422).send("Erro de usuário");
-    // };
-
     const participants = await db.collection("participants").find().toArray();
-    console.log(user);
     if (!participants.find(participant => participant.name === user)) {
         return res.status(422).send("Erro de usuário");
     };
@@ -122,6 +137,7 @@ app.get("/messages", async (req, res) => {
 
     const messagesFiltered = messages.filter(message => {
         return (
+            filterStatus(message) ||
             filterEverybody(message) ||
             filterPrivate(message, user)
         );
@@ -131,6 +147,24 @@ app.get("/messages", async (req, res) => {
         return res.send(messagesFiltered);
     }
     return res.send(messagesFiltered.slice(-limit));
-})
+});
+
+app.post("/status", async (req, res) => {
+    const name = req.headers.user;
+    
+    const participants = await db.collection("participants").find().toArray();
+    if (!participants.find(participant => participant.name === name)) {
+        return res.sendStatus(404);
+    };
+    try {
+        await db.collection("participants").insertOne({
+            name: name,
+            lastStatus: Date.now()
+        });
+        res.sendStatus(200);
+    } catch (error) {
+        res.send(500).send(error.message);
+    };
+});
 
 app.listen(5000, () => console.log("Listen on http://localhost:5000"));
