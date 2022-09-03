@@ -40,6 +40,25 @@ function filterPrivate(message, user) {
     return message.type === "private_message" && message.from === user || message.to === user;
 };
 
+setInterval(deleteInactives, 15000);
+
+async function deleteInactives() {
+    const participants = await db.collection("participants").find().toArray();
+    for (let i = 0; i < participants.length; i++) {
+        if (Date.now() - participants[i].lastStatus > 10000) {
+            await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
+            await db.collection("messages").insertOne({
+                name: participants[i].name,
+                to: "Todos",
+                text: "sai da sala...",
+                type: "status",
+                time: time
+            });
+        };
+    };
+};
+
+//Route /participants ---------------------------------------------------------------------------
 app.post("/participants", async (req, res) => {
     const { name } = req.body;
 
@@ -48,14 +67,6 @@ app.post("/participants", async (req, res) => {
         return res.status(422).send(validation.error.details[0].message);
     }
 
-    //Forma verbosa------------------------------------------------------------------
-    // const participants = await db.collection("participants").find().toArray();
-    // for (let i = 0; i < participants.length; i++) {
-    //     if (name === participants[i].name) {
-    //         return res.status(409).send("Usuário já existente");
-    //     }
-    // };
-    //Forma refatorada---------------------------------------------------------------
     const participants = await db.collection("participants").find().toArray();
     if (participants.find(participant => participant.name === name)) {
         return res.status(409).send("Usuário já existente");
@@ -88,46 +99,7 @@ app.get("/participants", async (req, res) => {
     };
 });
 
-setInterval(deleteInactives, 15000);
-
-async function deleteInactives() {
-    const participants = await db.collection("participants").find().toArray();
-    for (let i = 0; i < participants.length; i++) {
-        if (Date.now() - participants[i].lastStatus > 10000) {
-            await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
-            await db.collection("messages").insertOne({
-                name: participants[i].name,
-                to: "Todos",
-                text: "sai da sala...",
-                type: "status",
-                time: time
-            });
-        };
-    };
-    console.log("Inactives Deleted");
-};
-
-// app.delete("/participants", async (req, res) => {
-//     try {
-//         const participants = await db.collection("participants").find().toArray();
-//         for (let i = 0; i < participants.length; i++) {
-//             if (Date.now() - participants[i].lastStatus > 10000) {
-//                 await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
-//                 await db.collection("messages").insertOne({
-//                     name: participants[i].name,
-//                     to: "Todos",
-//                     text: "sai da sala...",
-//                     type: "status",
-//                     time: time
-//                 });
-//             };
-//         };
-//         return res.sendStatus(200);
-//     } catch (error) {
-//         res.send(500).send(error.message);
-//     };  
-// });
-
+//Route /messages ---------------------------------------------------------------------------------------
 app.post("/messages", async (req, res) => {
     const user = req.headers.user;
     const { to, text, type } = req.body;
@@ -177,6 +149,7 @@ app.get("/messages", async (req, res) => {
     return res.send(messagesFiltered.slice(-limit));
 });
 
+//Route /status --------------------------------------------------------------------------------------
 app.post("/status", async (req, res) => {
     const name = req.headers.user;
     
