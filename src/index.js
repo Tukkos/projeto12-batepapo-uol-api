@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dayjs from "dayjs";
 import joi from "joi";
 
@@ -88,17 +88,45 @@ app.get("/participants", async (req, res) => {
     };
 });
 
-app.delete("/participants", async (req, res) => {
+setInterval(deleteInactives, 15000);
 
+async function deleteInactives() {
     const participants = await db.collection("participants").find().toArray();
-    console.log(participants.filter(participant => (Date.now - Number(participant.lastStatus)) >= 10));
+    for (let i = 0; i < participants.length; i++) {
+        if (Date.now() - participants[i].lastStatus > 10000) {
+            await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
+            await db.collection("messages").insertOne({
+                name: participants[i].name,
+                to: "Todos",
+                text: "sai da sala...",
+                type: "status",
+                time: time
+            });
+        };
+    };
+    console.log("Inactives Deleted");
+};
 
-    // try {
-    //     // await db.collection("participants").deleteOne({ _id})
-    // } catch (error) {
-        
-    // }
-})
+// app.delete("/participants", async (req, res) => {
+//     try {
+//         const participants = await db.collection("participants").find().toArray();
+//         for (let i = 0; i < participants.length; i++) {
+//             if (Date.now() - participants[i].lastStatus > 10000) {
+//                 await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
+//                 await db.collection("messages").insertOne({
+//                     name: participants[i].name,
+//                     to: "Todos",
+//                     text: "sai da sala...",
+//                     type: "status",
+//                     time: time
+//                 });
+//             };
+//         };
+//         return res.sendStatus(200);
+//     } catch (error) {
+//         res.send(500).send(error.message);
+//     };  
+// });
 
 app.post("/messages", async (req, res) => {
     const user = req.headers.user;
