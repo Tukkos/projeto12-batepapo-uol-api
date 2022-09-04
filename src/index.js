@@ -48,7 +48,7 @@ async function deleteInactives() {
         if (Date.now() - participants[i].lastStatus > 10000) {
             await db.collection("participants").deleteOne({ _id: new ObjectId(participants[i]._id)});
             await db.collection("messages").insertOne({
-                name: participants[i].name,
+                from: participants[i].name,
                 to: "Todos",
                 text: "sai da sala...",
                 type: "status",
@@ -78,7 +78,7 @@ app.post("/participants", async (req, res) => {
             lastStatus: Date.now()
         });
         await db.collection("messages").insertOne({
-            name,
+            from: name,
             to: "Todos",
             text: "entra na sala...",
             type: "status",
@@ -147,6 +147,32 @@ app.get("/messages", async (req, res) => {
         return res.send(messagesFiltered);
     }
     return res.send(messagesFiltered.slice(-limit));
+});
+
+app.delete("/messages/:id", async (req, res) => {
+    const { id } = req.params;
+    console.log(id);
+    const user = req.headers.user;
+    console.log(user);
+
+    const message = await db.collection("messages").findOne({ _id: new ObjectId(id) });
+    console.log(message);
+    if (!message) {
+        console.log("nun acho :/");
+        return res.sendStatus(404);
+    };
+    console.log(message.from);
+    if (message.from !== user) {
+        console.log("vc nao pode apagar");
+        return res.sendStatus(401);
+    };
+
+    try {
+        await db.collection("messages").deleteOne({ _id: new ObjectId(id) });
+        res.sendStatus(200);
+    } catch (error) {
+        res.send(500).send(error.message);
+    };  
 });
 
 //Route /status --------------------------------------------------------------------------------------
