@@ -5,12 +5,13 @@ import { MongoClient, ObjectId } from "mongodb";
 import dayjs from "dayjs";
 import joi from "joi";
 
-let now = dayjs();
-const time = now.format("HH:mm:ss");
 const app = express();
 app.use(cors());
 app.use(express.json());
 dotenv.config();
+
+let now = dayjs();
+const time = now.format("HH:mm:ss");
 
 const mongoCLient = new MongoClient(process.env.MONGO_URI);
 let db;
@@ -18,6 +19,7 @@ mongoCLient.connect().then(() => {
     db = mongoCLient.db("batePapoUol");
 });
 
+//joi Schemas ------------------------------------------------------------------------------
 const participantsSchema = joi.object({
     name: joi.string().required()
 });
@@ -28,6 +30,7 @@ const messagesSchema = joi.object({
     type: joi.string().required().valid("message", "private_message")
 });
 
+//preset filters ----------------------------------------------------------------------------
 function filterEverybody(message) {
     return message.type === "message";
 };
@@ -40,6 +43,7 @@ function filterPrivate(message, user) {
     return message.type === "private_message" && message.from === user || message.to === user;
 };
 
+//SetInterval to delete inactive users -------------------------------------------------------------------
 setInterval(deleteInactives, 15000);
 
 async function deleteInactives() {
@@ -65,10 +69,10 @@ app.post("/participants", async (req, res) => {
     const validation = participantsSchema.validate(req.body);
     if (validation.error) {
         return res.status(422).send(validation.error.details[0].message);
-    }
+    };
 
-    const participants = await db.collection("participants").find().toArray();
-    if (participants.find(participant => participant.name === name)) {
+    const participant = await db.collection("participants").findOne({ name: user });
+    if (participant) {
         return res.status(409).send("Usuário já existente");
     };
 
@@ -110,9 +114,9 @@ app.post("/messages", async (req, res) => {
         return res.status(422).send(error);
     };
 
-    const participants = await db.collection("participants").find().toArray();
-    if (!participants.find(participant => participant.name === user)) {
-        return res.status(422).send("Erro de usuário");
+    const participant = await db.collection("participants").findOne({ name: user });
+    if (!participant) {
+        return res.sendStatus(422);
     };
 
     try {
@@ -126,13 +130,12 @@ app.post("/messages", async (req, res) => {
         res.sendStatus(201);
     } catch (error) {
         res.send(500).send(error.message);
-    }
-    
+    };
 });
 
 app.get("/messages", async (req, res) => {
     const messages = await db.collection("messages").find().toArray();
-    let { limit } = req.query;
+    const { limit } = req.query;
     const user = req.headers.user;
 
     const messagesFiltered = messages.filter(message => {
@@ -154,7 +157,6 @@ app.delete("/messages/:id", async (req, res) => {
     const user = req.headers.user;
 
     const message = await db.collection("messages").findOne({ _id: new ObjectId(id) });
-    console.log(message);
     if (!message) {
         return res.sendStatus(404);
     };
@@ -182,7 +184,6 @@ app.put("/messages/:id", async (req, res) => {
 
     const participant = await db.collection("participants").findOne({ name: user });
     if (!participant) {
-        console.log("aqui");
         return res.sendStatus(422);
     };
 
@@ -205,11 +206,12 @@ app.put("/messages/:id", async (req, res) => {
 //Route /status --------------------------------------------------------------------------------------
 app.post("/status", async (req, res) => {
     const name = req.headers.user;
-    
-    const participants = await db.collection("participants").find().toArray();
-    if (!participants.find(participant => participant.name === name)) {
+
+    const participant = await db.collection("participants").findOne({ name: user });
+    if (!participant) {
         return res.sendStatus(404);
     };
+
     try {
         await db.collection("participants").insertOne({
             name: name,
