@@ -151,19 +151,14 @@ app.get("/messages", async (req, res) => {
 
 app.delete("/messages/:id", async (req, res) => {
     const { id } = req.params;
-    console.log(id);
     const user = req.headers.user;
-    console.log(user);
 
     const message = await db.collection("messages").findOne({ _id: new ObjectId(id) });
     console.log(message);
     if (!message) {
-        console.log("nun acho :/");
         return res.sendStatus(404);
     };
-    console.log(message.from);
     if (message.from !== user) {
-        console.log("vc nao pode apagar");
         return res.sendStatus(401);
     };
 
@@ -173,6 +168,38 @@ app.delete("/messages/:id", async (req, res) => {
     } catch (error) {
         res.send(500).send(error.message);
     };  
+});
+
+app.put("/messages/:id", async (req, res) => {
+    const user = req.headers.user;
+    const { id } = req.params;
+
+    const validation = messagesSchema.validate(req.body, { abortEarly: false });
+    if (validation.error) {
+        const error = validation.error.details.map(detail => detail.message);
+        return res.status(422).send(error);
+    };
+
+    const participant = await db.collection("participants").findOne({ name: user });
+    if (!participant) {
+        console.log("aqui");
+        return res.sendStatus(422);
+    };
+
+    const message = await db.collection("messages").findOne({ _id: new ObjectId(id) });
+    if (!message) {
+        return res.sendStatus(404);
+    };
+    if (message.from !== user) {
+        return res.sendStatus(401);
+    };
+
+    try {
+        await db.collection("messages").updateOne({ _id: message._id }, { $set: req.body });
+        return res.sendStatus(200);
+    } catch (error) {
+        res.status(500).send(error);
+    };
 });
 
 //Route /status --------------------------------------------------------------------------------------
